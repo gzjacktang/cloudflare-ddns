@@ -10,9 +10,9 @@ set -o pipefail
 
 TG_ENABLE=true
 
-TG_TOKEN="6681276326:AAGnnXSQd4LWBX3FxzmfZhsEPtyAf3nRYbw"
+TG_TOKEN="你的TG TOKEN"
 
-TG_CHAT_ID="6676528185"
+TG_CHAT_ID="你的TG ID"
 
 
 send_tg() {
@@ -34,20 +34,19 @@ send_tg() {
 
 
 # API token
-CFKEY=vHaUrMKdpsBfxHU3BG918YIPnHWPQvRALsHSXlBQ
+CFKEY=你的CF API
 
 
 # Zone name
-CFZONE_NAME=540808.xyz
+CFZONE_NAME=你的域名如(540808.xyz)
 
 
 # Hostname
-CFRECORD_NAME=boil
+CFRECORD_NAME=你的域名前缀如(boilv6)
 
 
 # Record type
-CFRECORD_TYPE=A
-
+CFRECORD_TYPE=V4填(A)V6填(AAAA)
 
 # TTL
 CFTTL=120
@@ -238,7 +237,7 @@ if [ "$(echo $RESPONSE | grep "\"success\":true")" != "" ]; then
 
     # Telegram通知
 
-    send_tg "✅ BOIL IPv4 DDNS更新成功
+    send_tg "✅ BOIL IP DDNS更新成功
 
 域名:
 $CFRECORD_NAME
@@ -277,7 +276,7 @@ else
 
     # Telegram失败通知
 
-    send_tg "❌ BOIL IPv4 DDNS更新失败
+    send_tg "❌ BOIL IP DDNS更新失败
 
 域名:
 $CFRECORD_NAME
