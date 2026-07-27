@@ -114,5 +114,3 @@ DDNS 脚本不监听端口，也不需要开放任何入站端口。它只需要
 ----
 参考作者：https://github.com/aipeach/cloudflare-api-v4-ddns
 ----
-参考网址：https://aipeach.gitbook.io/blogbackup/cloudflare-da-jian-ddns-jiao-ben-ban
-----
