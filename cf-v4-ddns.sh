@@ -106,6 +106,19 @@ fi
 
 # Get zone_identifier & record_identifier
 ID_FILE=$HOME/.cf-id_$CFRECORD_NAME.txt
+
+cf_api_get() {
+  local url=$1
+  curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+    -X GET "$url" \
+    -H "Authorization: Bearer $CFKEY" \
+    -H "Content-Type: application/json"
+}
+
+first_id() {
+  grep -oE '"id":"[^"]+"' | cut -d '"' -f 4 | sed -n '1p'
+}
+
 if [ -f "$ID_FILE" ] && [ "$(wc -l < "$ID_FILE")" -eq 4 ] \
   && [ "$(sed -n '3p' "$ID_FILE")" == "$CFZONE_NAME" ] \
   && [ "$(sed -n '4p' "$ID_FILE")" == "$CFRECORD_NAME" ]; then
@@ -113,8 +126,27 @@ if [ -f "$ID_FILE" ] && [ "$(wc -l < "$ID_FILE")" -eq 4 ] \
     CFRECORD_ID=$(sed -n '2p' "$ID_FILE")
 else
     echo "Updating zone_identifier & record_identifier"
-    CFZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME" -H "Authorization: Bearer $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1)
-    CFRECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME" -H "Authorization: Bearer $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1)
+    ZONE_RESPONSE=$(cf_api_get "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME") || {
+      echo "Failed to query Cloudflare zones. Check network connectivity and API token."
+      exit 1
+    }
+    CFZONE_ID=$(printf '%s' "$ZONE_RESPONSE" | first_id) || true
+    if [ -z "$CFZONE_ID" ]; then
+      echo "Cloudflare could not find zone '$CFZONE_NAME'. Check CFZONE_NAME and API Token permissions."
+      echo "Response: $ZONE_RESPONSE"
+      exit 1
+    fi
+
+    RECORD_RESPONSE=$(cf_api_get "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME") || {
+      echo "Failed to query Cloudflare DNS records."
+      exit 1
+    }
+    CFRECORD_ID=$(printf '%s' "$RECORD_RESPONSE" | first_id) || true
+    if [ -z "$CFRECORD_ID" ]; then
+      echo "Cloudflare could not find DNS record '$CFRECORD_NAME'. Create the record first and set it to DNS only."
+      echo "Response: $RECORD_RESPONSE"
+      exit 1
+    fi
     {
       echo "$CFZONE_ID"
       echo "$CFRECORD_ID"
@@ -126,7 +158,7 @@ fi
 # If WAN is changed, update Cloudflare
 echo "Updating DNS to $WAN_IP"
 
-RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records/$CFRECORD_ID" \
+RESPONSE=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -X PUT "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records/$CFRECORD_ID" \
   -H "Authorization: Bearer $CFKEY" \
   -H "Content-Type: application/json" \
   --data "{\"id\":\"$CFZONE_ID\",\"type\":\"$CFRECORD_TYPE\",\"name\":\"$CFRECORD_NAME\",\"content\":\"$WAN_IP\", \"ttl\":$CFTTL}")
