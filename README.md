@@ -55,18 +55,35 @@ API Token 已包含账号身份与权限，因此不需要 `CFUSER`。请只授�
 4. 首次执行，确认 Cloudflare DNS 记录已更新：
 
 ```
-./root/cf-v4-ddns.sh
+chmod 700 /root/cf-v4-ddns.sh
+/root/cf-v4-ddns.sh
 ```
 
-5. 设置定时任务：
+脚本不是常驻服务：每次运行时检查公网 IP，仅在 IP 变化时更新 Cloudflare，然后退出。
+
+5. 使用 cron 持续定期执行。编辑定时任务：
 
 ```
 crontab -e
+```
+
+每两分钟执行一次：
+
+```cron
 */2 * * * * /root/cf-v4-ddns.sh >/dev/null 2>&1
 
-# 如果需要日志，替换上一行代码
+# 如需日志，改用这一行：
 */2 * * * * /root/cf-v4-ddns.sh >> /var/log/cf-ddns.log 2>&1
 ```
+
+保存后可用以下命令确认和查看日志：
+
+```
+crontab -l
+tail -f /var/log/cf-ddns.log
+```
+
+`chmod 700` 会限制脚本仅由所有者读取和执行，避免 Cloudflare API Token 被其他本机用户读取。
 
 ## Telegram 通知版本
 
