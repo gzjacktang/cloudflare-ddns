@@ -10,9 +10,9 @@ set -o pipefail
 
 TG_ENABLE=true
 
-TG_TOKEN="你的TG TOKEN"
+TG_TOKEN=""
 
-TG_CHAT_ID="你的TG ID"
+TG_CHAT_ID=""
 
 
 send_tg() {
@@ -34,19 +34,19 @@ send_tg() {
 
 
 # API token
-CFKEY=你的CF API
+CFKEY=""
 
 
 # Zone name
-CFZONE_NAME=你的域名如(540808.xyz)
+CFZONE_NAME=""
 
 
 # Hostname
-CFRECORD_NAME=你的域名前缀如(boilv6)
+CFRECORD_NAME=""
 
 
 # Record type
-CFRECORD_TYPE=V4填(A)V6填(AAAA)
+CFRECORD_TYPE="A"
 
 # TTL
 CFTTL=120
@@ -54,28 +54,6 @@ CFTTL=120
 
 # Force update
 FORCE=false
-
-
-
-WANIPSITE="http://ipv4.icanhazip.com"
-
-
-
-if [ "$CFRECORD_TYPE" = "A" ]; then
-
-  :
-
-elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
-
-  WANIPSITE="http://ipv6.icanhazip.com"
-
-else
-
-  echo "$CFRECORD_TYPE specified is invalid"
-
-  exit 2
-
-fi
 
 
 
@@ -94,10 +72,20 @@ while getopts k:h:z:t:f: opts; do
     t) CFRECORD_TYPE=${OPTARG} ;;
 
     f) FORCE=${OPTARG} ;;
+    *) exit 2 ;;
 
   esac
 
 done
+
+if [ "$CFRECORD_TYPE" = "A" ]; then
+  WANIPSITE="https://ipv4.icanhazip.com"
+elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
+  WANIPSITE="https://ipv6.icanhazip.com"
+else
+  echo "$CFRECORD_TYPE specified is invalid"
+  exit 2
+fi
 
 
 
@@ -119,11 +107,19 @@ if [ "$CFRECORD_NAME" = "" ]; then
 
 fi
 
+if [ "$CFZONE_NAME" = "" ]; then
+
+  echo "Missing zone name"
+
+  exit 2
+
+fi
+
 
 
 # If hostname is not FQDN
 
-if [ "$CFRECORD_NAME" != "$CFZONE_NAME" ] && ! [ -z "${CFRECORD_NAME##*$CFZONE_NAME}" ]; then
+if [ "$CFRECORD_NAME" != "$CFZONE_NAME" ] && [ -n "${CFRECORD_NAME##*"$CFZONE_NAME"}" ]; then
 
   CFRECORD_NAME="$CFRECORD_NAME.$CFZONE_NAME"
 
@@ -135,16 +131,16 @@ fi
 
 # Get current and old WAN ip
 
-WAN_IP=$(curl -s ${WANIPSITE})
+WAN_IP=$(curl -fsSL "$WANIPSITE")
 
 
 WAN_IP_FILE=$HOME/.cf-wan_ip_$CFRECORD_NAME.txt
 
 
 
-if [ -f $WAN_IP_FILE ]; then
+if [ -f "$WAN_IP_FILE" ]; then
 
-  OLD_WAN_IP=$(cat $WAN_IP_FILE)
+  OLD_WAN_IP=$(cat "$WAN_IP_FILE")
 
 else
 
@@ -170,7 +166,7 @@ fi
 ID_FILE=$HOME/.cf-id_$CFRECORD_NAME.txt
 
 
-if [ -f $ID_FILE ] && [ $(wc -l < $ID_FILE) -eq 4 ] \
+if [ -f "$ID_FILE" ] && [ "$(wc -l < "$ID_FILE")" -eq 4 ] \
   && [ "$(sed -n '3p' "$ID_FILE")" == "$CFZONE_NAME" ] \
   && [ "$(sed -n '4p' "$ID_FILE")" == "$CFRECORD_NAME" ]; then
 
@@ -202,13 +198,12 @@ else
 
 
 
-    echo "$CFZONE_ID" > $ID_FILE
-
-    echo "$CFRECORD_ID" >> $ID_FILE
-
-    echo "$CFZONE_NAME" >> $ID_FILE
-
-    echo "$CFRECORD_NAME" >> $ID_FILE
+    {
+      echo "$CFZONE_ID"
+      echo "$CFRECORD_ID"
+      echo "$CFZONE_NAME"
+      echo "$CFRECORD_NAME"
+    } > "$ID_FILE"
 
 
 fi
@@ -229,7 +224,7 @@ RESPONSE=$(curl -s -X PUT \
 
 
 
-if [ "$(echo $RESPONSE | grep "\"success\":true")" != "" ]; then
+if printf '%s' "$RESPONSE" | grep -q '"success":true'; then
 
 
     echo "Updated successfully!"
@@ -259,7 +254,7 @@ $(hostname)"
 
 
 
-    echo "$WAN_IP" > $WAN_IP_FILE
+    echo "$WAN_IP" > "$WAN_IP_FILE"
 
 
     exit 0

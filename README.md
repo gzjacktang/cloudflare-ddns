@@ -1,5 +1,6 @@
-Cloudflare API v4 Dynamic DNS Update in Bash, without unnecessary requests
-Now the script also supports v6(AAAA DDNS Recoards)
+# Cloudflare DDNS
+
+使用 Bash 调用 Cloudflare API v4 更新动态 DNS，避免无必要的更新请求，并支持 IPv4（A）与 IPv6（AAAA）记录。
 
 ----
 
@@ -28,7 +29,7 @@ Now the script also supports v6(AAAA DDNS Recoards)
 2
 下载 DNNS 脚本
 ```
-curl https://raw.githubusercontent.com/Niboy08/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh > /root/cf-v4-ddns.sh && chmod +x /root/cf-v4-ddns.sh
+curl -fsSL https://raw.githubusercontent.com/gzjacktang/cloudflare-ddns/main/cf-v4-ddns.sh -o /root/cf-v4-ddns.sh && chmod +x /root/cf-v4-ddns.sh
 ```
 修改 DDNS 脚本并补充相关信息
 ```

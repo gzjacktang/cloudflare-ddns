@@ -7,7 +7,7 @@ set -o pipefail
 # Can retrieve cloudflare Domain id and list zone's, because, lazy
 
 # Place at:
-# curl https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh > /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
+# curl -fsSL https://raw.githubusercontent.com/gzjacktang/cloudflare-ddns/main/cf-v4-ddns.sh -o /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
 # run `crontab -e` and add next line:
 # */1 * * * * /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
 # or you need log:
@@ -26,13 +26,13 @@ set -o pipefail
 
 # API token, see https://www.cloudflare.com/a/account/my-account,
 # incorrect api-token results in E_UNAUTH error
-CFKEY=（令牌）
+CFKEY=""
 
 # Zone name, eg: example.com
-CFZONE_NAME=（一级域名如：baidu.com）
+CFZONE_NAME=""
 
 # Hostname to update, eg: homeserver.example.com
-CFRECORD_NAME=（二级域名头如：www）
+CFRECORD_NAME=""
 
 # Record type, A(IPv4)|AAAA(IPv6), default IPv4
 CFRECORD_TYPE=A
@@ -43,18 +43,6 @@ CFTTL=120
 # Ignore local file, update ip anyway
 FORCE=false
 
-WANIPSITE="http://ipv4.icanhazip.com"
-
-# Site to retrieve WAN ip, other examples are: bot.whatismyipaddress.com, https://api.ipify.org/ ...
-if [ "$CFRECORD_TYPE" = "A" ]; then
-  :
-elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
-  WANIPSITE="http://ipv6.icanhazip.com"
-else
-  echo "$CFRECORD_TYPE specified is invalid, CFRECORD_TYPE can only be A(for IPv4)|AAAA(for IPv6)"
-  exit 2
-fi
-
 # get parameter
 while getopts k:h:z:t:f: opts; do
   case ${opts} in
@@ -63,8 +51,20 @@ while getopts k:h:z:t:f: opts; do
     z) CFZONE_NAME=${OPTARG} ;;
     t) CFRECORD_TYPE=${OPTARG} ;;
     f) FORCE=${OPTARG} ;;
+    *) exit 2 ;;
   esac
 done
+
+# Site to retrieve WAN IP. Determine it after processing -t so the command-line
+# record type is honored.
+if [ "$CFRECORD_TYPE" = "A" ]; then
+  WANIPSITE="https://ipv4.icanhazip.com"
+elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
+  WANIPSITE="https://ipv6.icanhazip.com"
+else
+  echo "$CFRECORD_TYPE specified is invalid, CFRECORD_TYPE can only be A(for IPv4)|AAAA(for IPv6)"
+  exit 2
+fi
 
 # If required settings are missing just exit
 if [ "$CFKEY" = "" ]; then
@@ -77,18 +77,22 @@ if [ "$CFRECORD_NAME" = "" ]; then
   echo "save in ${0} or using the -h flag"
   exit 2
 fi
+if [ "$CFZONE_NAME" = "" ]; then
+  echo "Missing zone name, save in ${0} or use the -z flag"
+  exit 2
+fi
 
 # If the hostname is not a FQDN
-if [ "$CFRECORD_NAME" != "$CFZONE_NAME" ] && ! [ -z "${CFRECORD_NAME##*$CFZONE_NAME}" ]; then
+if [ "$CFRECORD_NAME" != "$CFZONE_NAME" ] && [ -n "${CFRECORD_NAME##*"$CFZONE_NAME"}" ]; then
   CFRECORD_NAME="$CFRECORD_NAME.$CFZONE_NAME"
   echo " => Hostname is not a FQDN, assuming $CFRECORD_NAME"
 fi
 
 # Get current and old WAN ip
-WAN_IP=$(curl -s ${WANIPSITE})
+WAN_IP=$(curl -fsSL "$WANIPSITE")
 WAN_IP_FILE=$HOME/.cf-wan_ip_$CFRECORD_NAME.txt
-if [ -f $WAN_IP_FILE ]; then
-  OLD_WAN_IP=$(cat $WAN_IP_FILE)
+if [ -f "$WAN_IP_FILE" ]; then
+  OLD_WAN_IP=$(cat "$WAN_IP_FILE")
 else
   echo "No file, need IP"
   OLD_WAN_IP=""
@@ -102,7 +106,7 @@ fi
 
 # Get zone_identifier & record_identifier
 ID_FILE=$HOME/.cf-id_$CFRECORD_NAME.txt
-if [ -f $ID_FILE ] && [ $(wc -l < $ID_FILE) -eq 4 ] \
+if [ -f "$ID_FILE" ] && [ "$(wc -l < "$ID_FILE")" -eq 4 ] \
   && [ "$(sed -n '3p' "$ID_FILE")" == "$CFZONE_NAME" ] \
   && [ "$(sed -n '4p' "$ID_FILE")" == "$CFRECORD_NAME" ]; then
     CFZONE_ID=$(sed -n '1p' "$ID_FILE")
@@ -111,10 +115,12 @@ else
     echo "Updating zone_identifier & record_identifier"
     CFZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME" -H "Authorization: Bearer $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1)
     CFRECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME" -H "Authorization: Bearer $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1)
-    echo "$CFZONE_ID" > $ID_FILE
-    echo "$CFRECORD_ID" >> $ID_FILE
-    echo "$CFZONE_NAME" >> $ID_FILE
-    echo "$CFRECORD_NAME" >> $ID_FILE
+    {
+      echo "$CFZONE_ID"
+      echo "$CFRECORD_ID"
+      echo "$CFZONE_NAME"
+      echo "$CFRECORD_NAME"
+    } > "$ID_FILE"
 fi
 
 # If WAN is changed, update Cloudflare
@@ -125,9 +131,9 @@ RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID
   -H "Content-Type: application/json" \
   --data "{\"id\":\"$CFZONE_ID\",\"type\":\"$CFRECORD_TYPE\",\"name\":\"$CFRECORD_NAME\",\"content\":\"$WAN_IP\", \"ttl\":$CFTTL}")
 
-if [ "$(echo $RESPONSE | grep "\"success\":true")" != "" ]; then
+if printf '%s' "$RESPONSE" | grep -q '"success":true'; then
   echo "Updated successfully!"
-  echo $WAN_IP > $WAN_IP_FILE
+  echo "$WAN_IP" > "$WAN_IP_FILE"
   exit
 else
   echo 'Something went wrong :('
