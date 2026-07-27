@@ -55,7 +55,7 @@ API Token 已包含账号身份与权限，因此不需要 `CFUSER`。请只授�
 4. 首次执行，确认 Cloudflare DNS 记录已更新：
 
 ```
-/root/cf-v4-ddns.sh
+./root/cf-v4-ddns.sh
 ```
 
 5. 设置定时任务：
